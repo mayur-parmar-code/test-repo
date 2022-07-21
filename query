@@ -149,3 +149,52 @@ List<AggregationOperation> operationList = new ArrayList<>();
 			return boothResponse.getMappedResults();
 		}
 		return null;
+		
+		
+		
+		//
+		
+		{
+    "_id" : ObjectId("6284a01d5513198e810f6ea5"),
+    "name" : "Event Overview",
+    "description" : "Event Overview",
+    "accessCode" : [ 
+        "M-2"
+    ],
+    "filter" : {
+        "groupCode" : [ 
+            "HOST", 
+            "TEAM_MEMBER"
+        ]
+    },
+    "createdBy" : "undefined",
+    "createdAt" : ISODate("2022-05-18T07:28:29.110Z"),
+    "modifiedBy" : "undefined",
+    "modifiedAt" : ISODate("2022-06-07T11:17:48.218Z"),
+    "suspended" : false,
+    "_class" : "com.security.model.Features"
+}
+
+//
+
+{
+    "_id" : ObjectId("6284a0c45513198e810f6eb7"),
+    "name" : "Event Setting",
+    "description" : "Event Setting",
+    "parentId" : ObjectId("6284a01d5513198e810f6ea5"),
+    "accessCode" : [ 
+        "SM-1"
+    ],
+    "filter" : {
+        "groupCode" : [ 
+            "HOST", 
+            "TEAM_MEMBER"
+        ]
+    },
+    "createdBy" : "undefined",
+    "createdAt" : ISODate("2022-05-18T07:31:16.989Z"),
+    "modifiedBy" : "undefined",
+    "modifiedAt" : ISODate("2022-06-07T11:26:14.099Z"),
+    "suspended" : false,
+    "_class" : "com.security.model.Features"
+}
