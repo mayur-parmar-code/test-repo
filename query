@@ -1,0 +1,151 @@
+List<AggregationOperation> operationList = new ArrayList<>();
+		List<Criteria> criterias = new ArrayList<Criteria>();
+		Criteria graphLookupRestrictCriteria = new Criteria();
+		
+		Criteria criteria = new Criteria().orOperator(Criteria.where("parentId").is(null),
+				Criteria.where("parentId").exists(false)
+				).and("suspended").is(false);
+		operationList.add(new MatchOperation(criteria));
+		
+		if(featureTreeRequest != null && featureTreeRequest.getFilter() != null) {
+			criterias.add(criteria);
+			criterias = MongoQueryUtil.filterQueryCriterias(featureTreeRequest.getFilter(), true, "filter");
+			graphLookupRestrictCriteria = new Criteria().andOperator(criterias.toArray(new Criteria[criterias.size()]));
+			MatchOperation match = MongoQueryUtil.andMatchOperation(criterias);
+			if (match != null) {
+				operationList.add(match);
+			}
+		}
+		
+		GraphLookupOperation graphLookupOperation = Aggregation.graphLookup("Features").
+				startWith("$_id").
+				connectFrom("_id").
+				connectTo("parentId").
+				depthField("level").
+				restrict(graphLookupRestrictCriteria).
+				as("subFeatures");
+		operationList.add(graphLookupOperation);
+		
+		UnwindOperation unwindOperation = Aggregation.unwind("$subFeatures", true);
+		operationList.add(unwindOperation);
+		
+		Criteria subFeatureCriteria=new Criteria().orOperator(Criteria.where("subFeatures").exists(false),Criteria.where("subFeatures.suspended").is(false));
+		operationList.add(new MatchOperation(subFeatureCriteria));
+		
+		
+		if(featuresList != null && !featuresList.isEmpty())
+		{
+			Criteria featureOrSubFeatureIdMatch=new Criteria().orOperator(Criteria.where("subFeatures._id").in(featuresList),Criteria.where("_id").in(featuresList));
+			operationList.add(new MatchOperation(featureOrSubFeatureIdMatch));
+		}
+		
+		SortOperation sort =  Aggregation.sort(Sort.by(Sort.Direction.DESC, "subFeatures.level"));
+		operationList.add(sort);
+		
+		GroupOperation group = Aggregation.group("_id")
+				.first("name").as("name")
+				.first("parentId").as("parentId")
+				.first("accessCode").as("accessCode")
+				.first("description").as("description")
+				.first("icon").as("icon")
+				.push("subFeatures").as("subFeatures");
+		
+		operationList.add(group);
+	
+		String addField = "{"
+				+ "    $addFields: {"
+				+ "      subFeatures: {"
+				+ "        $reduce: {"
+				+ "          input: '$subFeatures',"
+				+ "          initialValue: {"
+				+ "            level: 0,"
+				+ "            presentChild: [],"
+				+ "            prevChild: []"
+				+ "          },"
+				+ "          in: {"
+				+ "            $let: {"
+				+ "              vars: {"
+				+ "                prev: {"
+				+ "                  $cond: ["
+				+ "                    {"
+				+ "                      $eq: ["
+				+ "                        '$$value.level',"
+				+ "                        '$$this.level'"
+				+ "                      ]"
+				+ "                    },"
+				+ "                    '$$value.prevChild',"
+				+ "                    '$$value.presentChild'"
+				+ "                  ]"
+				+ "                },"
+				+ "                current: {"
+				+ "                  $cond: ["
+				+ "                    {"
+				+ "                      $eq: ["
+				+ "                        '$$value.level',"
+				+ "                        '$$this.level'"
+				+ "                      ]"
+				+ "                    },"
+				+ "                    '$$value.presentChild',"
+				+ "                    []"
+				+ "                  ]"
+				+ "                }"
+				+ "              },"
+				+ "              in: {"
+				+ "                level: '$$this.level',"
+				+ "                prevChild: '$$prev',"
+				+ "                presentChild: {"
+				+ "                  $concatArrays: ["
+				+ "                    '$$current',"
+				+ "                    ["
+				+ "                      {"
+				+ "                        $mergeObjects: ["
+				+ "                          '$$this',"
+				+ "                          {"
+				+ "                            subFeatures: {"
+				+ "                              $filter: {"
+				+ "                                input: '$$prev',"
+				+ "                                as: 'e',"
+				+ "                                cond: {"
+				+ "                                  $eq: ["
+				+ "                                    '$$e.parentId',"
+				+ "                                    '$$this._id'"
+				+ "                                  ]"
+				+ "                                }"
+				+ "                              }"
+				+ "                            }"
+				+ "                          }"
+				+ "                        ]"
+				+ "                      }"
+				+ "                    ]"
+				+ "                  ]"
+				+ "                }"
+				+ "              }"
+				+ "            }"
+				+ "          }"
+				+ "        }"
+				+ "      }"
+				+ "    }"
+				+ "  }";
+		
+		AggregationOperation addFieldOpertion = new CustomAggregationOperation(addField);
+		
+		operationList.add(addFieldOpertion);
+		
+		String subFields = "{"
+				+ "$addFields: {"
+				+ "      subFeatures: '$subFeatures.presentChild'"
+				+ "    }"
+				+ "  }";
+		
+		AggregationOperation addFieldOpertion2 = new CustomAggregationOperation(subFields);
+		
+		operationList.add(addFieldOpertion2);
+		
+		Aggregation aggregation = MongoQueryUtil.aggregationWithoutOptions(operationList);
+		
+		AggregationResults<FeatureTreeResponse> boothResponse = mongoTemplate.aggregate(aggregation, "Features", FeatureTreeResponse.class);
+		
+		if (boothResponse.getMappedResults() != null && !boothResponse.getMappedResults().isEmpty()) {
+			return boothResponse.getMappedResults();
+		}
+		return null;
